@@ -1,0 +1,5 @@
+{
+  "name": "Supabase Message Viewer",
+  "description": "A read-only interface for browsing and inspecting database messages between users with support for media and reactions.",
+  "requestFramePermissions": []
+}
