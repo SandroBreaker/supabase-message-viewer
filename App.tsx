@@ -3,7 +3,7 @@ import { supabase } from './supabase';
 import { Message } from './types';
 import ChatInterface from './components/ChatInterface';
 import ExportControls from './utils/ExportControls';
-import { AlertCircle, RefreshCw, LayoutDashboard, Sun, Moon } from 'lucide-react';
+import { AlertCircle, RefreshCw, LayoutDashboard, Sun, Moon, CalendarDays } from 'lucide-react';
 
 const generateNickname = (uuid: string | null): string => {
   if (!uuid) return "Sistema";
@@ -29,13 +29,9 @@ const App: React.FC = () => {
   });
 
   useEffect(() => {
-    if (darkMode) {
-      document.documentElement.classList.add('dark');
-      localStorage.setItem('theme', 'dark');
-    } else {
-      document.documentElement.classList.remove('dark');
-      localStorage.setItem('theme', 'light');
-    }
+    const root = document.documentElement;
+    darkMode ? root.classList.add('dark') : root.classList.remove('dark');
+    localStorage.setItem('theme', darkMode ? 'dark' : 'light');
   }, [darkMode]);
 
   const fetchMessages = async () => {
@@ -66,7 +62,18 @@ const App: React.FC = () => {
     return mapping;
   }, [messages]);
 
-  const uniqueUserIds = useMemo(() => Object.keys(userAliases), [userAliases]);
+  const oldestDateLabel = useMemo(() => {
+    if (messages.length === 0) return null;
+    return new Date(messages[0].created_at).toLocaleString('pt-BR', {
+      day: '2-digit',
+      month: '2-digit',
+      year: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit'
+    });
+  }, [messages]);
+
+  const uniqueUserIds = Object.keys(userAliases);
 
   useEffect(() => {
     if (uniqueUserIds.length > 0 && !activeUser) {
@@ -77,19 +84,8 @@ const App: React.FC = () => {
 
   if (loading) {
     return (
-      <div className="flex flex-col items-center justify-center min-h-screen bg-zinc-50 dark:bg-[#09090B]">
+      <div className="flex items-center justify-center min-h-screen bg-zinc-50 dark:bg-[#09090B]">
         <div className="w-12 h-12 border-4 border-indigo-500/20 border-t-indigo-600 rounded-full animate-spin"></div>
-      </div>
-    );
-  }
-
-  if (error) {
-    return (
-      <div className="flex flex-col items-center justify-center min-h-screen p-6">
-        <AlertCircle className="w-12 h-12 text-red-500 mb-4" />
-        <button onClick={fetchMessages} className="bg-zinc-900 dark:bg-white text-white dark:text-zinc-900 px-6 py-2 rounded-xl font-bold">
-          Repetir Consulta
-        </button>
       </div>
     );
   }
@@ -112,7 +108,7 @@ const App: React.FC = () => {
 
         <div className="flex items-center gap-4">
           <div className="hidden sm:flex flex-col items-end">
-            <span className="text-[9px] text-zinc-400 font-black uppercase tracking-widest">Set My Perspective:</span>
+            <span className="text-[9px] text-zinc-400 font-black uppercase tracking-widest text-right">Perspective:</span>
             <select 
               value={activeUser || ''}
               onChange={(e) => setActiveUser(e.target.value)}
@@ -123,7 +119,6 @@ const App: React.FC = () => {
               ))}
             </select>
           </div>
-
           <div className="flex items-center gap-1">
             <button onClick={() => setDarkMode(!darkMode)} className="p-2.5 hover:bg-zinc-100 dark:hover:bg-zinc-800 rounded-xl transition-all text-zinc-500 dark:text-zinc-400">
               {darkMode ? <Sun className="w-5 h-5" /> : <Moon className="w-5 h-5" />}
@@ -135,7 +130,6 @@ const App: React.FC = () => {
         </div>
       </header>
 
-      {/* INTEGRAÇÃO DA NOVA FUNCIONALIDADE */}
       <ExportControls />
 
       <main className="flex-1 overflow-hidden relative">
@@ -146,10 +140,17 @@ const App: React.FC = () => {
         />
       </main>
 
-      <footer className="bg-white/50 dark:bg-zinc-900/50 border-t border-zinc-200 dark:border-zinc-800 px-6 py-2">
-        <p className="text-[10px] font-black text-zinc-400 uppercase tracking-[0.2em] text-center">
-          {messages.length} Registros recuperados da tabela messages
+      <footer className="bg-white/50 dark:bg-zinc-900/50 border-t border-zinc-200 dark:border-zinc-800 px-6 py-2.5 flex flex-col sm:flex-row justify-between items-center gap-2">
+        <p className="text-[10px] font-black text-zinc-400 uppercase tracking-[0.2em]">
+          {messages.length} Registros recuperados
         </p>
+        
+        {oldestDateLabel && (
+          <div className="flex items-center gap-2 text-[10px] font-black text-indigo-500 dark:text-indigo-400 uppercase tracking-[0.2em]">
+            <CalendarDays className="w-3 h-3" />
+            <span>Limite do Histórico: {oldestDateLabel}</span>
+          </div>
+        )}
       </footer>
     </div>
   );
