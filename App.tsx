@@ -1,24 +1,20 @@
-
 import React, { useEffect, useState, useMemo } from 'react';
 import { supabase } from './supabase';
 import { Message } from './types';
 import ChatInterface from './components/ChatInterface';
-import { AlertCircle, RefreshCw, LayoutDashboard, Sun, Moon, User } from 'lucide-react';
+import ExportControls from './utils/ExportControls';
+import { AlertCircle, RefreshCw, LayoutDashboard, Sun, Moon } from 'lucide-react';
 
-// Deterministic nickname generator
 const generateNickname = (uuid: string | null): string => {
   if (!uuid) return "Sistema";
   const adjectives = ["Neon", "Swift", "Silent", "Crimson", "Azure", "Golden", "Mystic", "Iron", "Vibrant", "Frost"];
   const names = ["Phoenix", "Shadow", "Falcon", "Nova", "Titan", "Echo", "Ghost", "Orion", "Raven", "Wolf"];
-  
   let hash = 0;
   for (let i = 0; i < uuid.length; i++) {
     hash = uuid.charCodeAt(i) + ((hash << 5) - hash);
   }
-  
   const adjIndex = Math.abs(hash) % adjectives.length;
   const nameIndex = Math.abs(hash >> 1) % names.length;
-  
   return `${adjectives[adjIndex]} ${names[nameIndex]}`;
 };
 
@@ -53,41 +49,29 @@ const App: React.FC = () => {
         .limit(100);
 
       if (fetchError) throw fetchError;
-      
-      const result = data ? [...data].reverse() : [];
-      setMessages(result);
+      setMessages(data ? [...data].reverse() : []);
     } catch (err: any) {
-      console.error('Error fetching messages:', err);
-      setError(err.message || 'Falha na sincronização com o banco de dados');
+      setError(err.message || 'Falha na sincronização');
     } finally {
       setLoading(false);
     }
   };
 
-  useEffect(() => {
-    fetchMessages();
-  }, []);
+  useEffect(() => { fetchMessages(); }, []);
 
   const userAliases = useMemo(() => {
     const uniqueUsers = Array.from(new Set(messages.map(m => m.sender_id).filter(Boolean))) as string[];
     const mapping: Record<string, string> = {};
-    uniqueUsers.forEach(uid => {
-      mapping[uid] = generateNickname(uid);
-    });
+    uniqueUsers.forEach(uid => { mapping[uid] = generateNickname(uid); });
     return mapping;
   }, [messages]);
 
   const uniqueUserIds = useMemo(() => Object.keys(userAliases), [userAliases]);
 
-  // Handle default perspective logic: Prioritize 'Silent Echo'
   useEffect(() => {
     if (uniqueUserIds.length > 0 && !activeUser) {
       const silentEchoId = uniqueUserIds.find(id => userAliases[id] === 'Silent Echo');
-      if (silentEchoId) {
-        setActiveUser(silentEchoId);
-      } else {
-        setActiveUser(uniqueUserIds[0]);
-      }
+      setActiveUser(silentEchoId || uniqueUserIds[0]);
     }
   }, [uniqueUserIds, userAliases, activeUser]);
 
@@ -95,7 +79,6 @@ const App: React.FC = () => {
     return (
       <div className="flex flex-col items-center justify-center min-h-screen bg-zinc-50 dark:bg-[#09090B]">
         <div className="w-12 h-12 border-4 border-indigo-500/20 border-t-indigo-600 rounded-full animate-spin"></div>
-        <p className="mt-4 text-zinc-500 dark:text-zinc-400 font-medium animate-pulse">Carregando mensagens...</p>
       </div>
     );
   }
@@ -103,14 +86,10 @@ const App: React.FC = () => {
   if (error) {
     return (
       <div className="flex flex-col items-center justify-center min-h-screen p-6">
-        <div className="bg-white dark:bg-zinc-900 p-8 rounded-3xl shadow-xl max-w-md w-full text-center border border-zinc-200 dark:border-zinc-800">
-          <AlertCircle className="w-12 h-12 text-red-500 mx-auto mb-4" />
-          <h1 className="text-xl font-bold mb-2">Erro de Conexão</h1>
-          <p className="text-zinc-500 dark:text-zinc-400 mb-6 text-sm">{error}</p>
-          <button onClick={fetchMessages} className="w-full bg-zinc-900 dark:bg-white text-white dark:text-zinc-900 font-bold py-3 rounded-xl flex items-center justify-center gap-2">
-            <RefreshCw className="w-4 h-4" /> Tentar novamente
-          </button>
-        </div>
+        <AlertCircle className="w-12 h-12 text-red-500 mb-4" />
+        <button onClick={fetchMessages} className="bg-zinc-900 dark:bg-white text-white dark:text-zinc-900 px-6 py-2 rounded-xl font-bold">
+          Repetir Consulta
+        </button>
       </div>
     );
   }
@@ -137,32 +116,27 @@ const App: React.FC = () => {
             <select 
               value={activeUser || ''}
               onChange={(e) => setActiveUser(e.target.value)}
-              className="text-[11px] font-bold bg-zinc-100 dark:bg-zinc-800 text-zinc-800 dark:text-zinc-200 border-none rounded-lg px-2 py-1 focus:ring-1 focus:ring-indigo-500 outline-none cursor-pointer"
+              className="text-[11px] font-bold bg-zinc-100 dark:bg-zinc-800 text-zinc-800 dark:text-zinc-200 border-none rounded-lg px-2 py-1 outline-none cursor-pointer"
             >
               {uniqueUserIds.map((uid) => (
-                <option key={uid} value={uid}>
-                  {userAliases[uid]}
-                </option>
+                <option key={uid} value={uid}>{userAliases[uid]}</option>
               ))}
             </select>
           </div>
 
           <div className="flex items-center gap-1">
-            <button 
-              onClick={() => setDarkMode(!darkMode)}
-              className="p-2.5 hover:bg-zinc-100 dark:hover:bg-zinc-800 rounded-xl transition-all text-zinc-500 dark:text-zinc-400"
-            >
+            <button onClick={() => setDarkMode(!darkMode)} className="p-2.5 hover:bg-zinc-100 dark:hover:bg-zinc-800 rounded-xl transition-all text-zinc-500 dark:text-zinc-400">
               {darkMode ? <Sun className="w-5 h-5" /> : <Moon className="w-5 h-5" />}
             </button>
-            <button 
-              onClick={fetchMessages}
-              className="p-2.5 hover:bg-zinc-100 dark:hover:bg-zinc-800 rounded-xl transition-all text-zinc-500 dark:text-zinc-400"
-            >
+            <button onClick={fetchMessages} className="p-2.5 hover:bg-zinc-100 dark:hover:bg-zinc-800 rounded-xl transition-all text-zinc-500 dark:text-zinc-400">
               <RefreshCw className="w-5 h-5" />
             </button>
           </div>
         </div>
       </header>
+
+      {/* INTEGRAÇÃO DA NOVA FUNCIONALIDADE */}
+      <ExportControls />
 
       <main className="flex-1 overflow-hidden relative">
         <ChatInterface 
