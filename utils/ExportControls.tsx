@@ -6,31 +6,50 @@ import { jsonToCsv, downloadFile } from './exportUtils';
 const ExportControls: React.FC = () => {
   const [startDate, setStartDate] = useState('');
   const [endDate, setEndDate] = useState('');
-  const [loading, setLoading] = useState<string | null>(null); // 'range' | 'full' | null
+  const [loading, setLoading] = useState<string | null>(null);
 
-  const executeDownload = async (data: any[], format: 'json' | 'csv', prefix: string) => {
-    const fileName = `${prefix}_${new Date().toISOString().split('T')[0]}`;
-    if (format === 'json') {
-      downloadFile(JSON.stringify(data, null, 2), `${fileName}.json`, 'application/json');
-    } else {
-      downloadFile(jsonToCsv(data), `${fileName}.csv`, 'text/csv');
+  // Helper para busca paginada exaustiva
+  const fetchAllData = async (queryBuilder: any) => {
+    let allData: any[] = [];
+    let from = 0;
+    const step = 1000;
+    let hasMore = true;
+
+    while (hasMore) {
+      const { data, error } = await queryBuilder.range(from, from + step - 1);
+      
+      if (error) throw error;
+      
+      if (data && data.length > 0) {
+        allData = [...allData, ...data];
+        from += step;
+        // Se retornar menos que o step, chegamos ao fim
+        if (data.length < step) hasMore = false;
+      } else {
+        hasMore = false;
+      }
     }
+    return allData;
   };
 
   const handleRangeExport = async (format: 'json' | 'csv') => {
     if (!startDate || !endDate) return alert('Selecione o período.');
     setLoading('range');
+    
     try {
-      const { data, error } = await supabase
+      const query = supabase
         .from('messages')
         .select('*')
         .gte('created_at', `${startDate}T00:00:00Z`)
         .lte('created_at', `${endDate}T23:59:59Z`)
         .order('created_at', { ascending: true });
 
-      if (error) throw error;
-      if (!data || data.length === 0) return alert('Nenhum registro no período.');
-      await executeDownload(data, format, `export_range_${startDate}_to_${endDate}`);
+      const data = await fetchAllData(query);
+      
+      if (data.length === 0) return alert('Nenhum registro no período.');
+      
+      const fileName = `export_range_${startDate}_to_${endDate}`;
+      processDownload(data, format, fileName);
     } catch (err: any) {
       alert('Erro: ' + err.message);
     } finally {
@@ -39,23 +58,29 @@ const ExportControls: React.FC = () => {
   };
 
   const handleFullExport = async (format: 'json' | 'csv') => {
-    const confirm = window.confirm("Isso irá baixar todos os registros da tabela. Continuar?");
-    if (!confirm) return;
-
     setLoading('full');
     try {
-      // Nota: Se a tabela for massiva (>10k rows), o Supabase pode exigir paginação.
-      const { data, error } = await supabase
+      const query = supabase
         .from('messages')
         .select('*')
         .order('created_at', { ascending: true });
 
-      if (error) throw error;
-      await executeDownload(data, format, 'export_full_database');
+      const data = await fetchAllData(query);
+      
+      const fileName = `export_full_db_${new Date().toISOString().split('T')[0]}`;
+      processDownload(data, format, fileName);
     } catch (err: any) {
       alert('Erro na exportação completa: ' + err.message);
     } finally {
       setLoading(null);
+    }
+  };
+
+  const processDownload = (data: any[], format: 'json' | 'csv', fileName: string) => {
+    if (format === 'json') {
+      downloadFile(JSON.stringify(data, null, 2), `${fileName}.json`, 'application/json');
+    } else {
+      downloadFile(jsonToCsv(data), `${fileName}.csv`, 'text/csv');
     }
   };
 
@@ -84,17 +109,15 @@ const ExportControls: React.FC = () => {
             onClick={() => handleRangeExport('json')}
             disabled={!!loading}
             className="p-2 bg-zinc-100 dark:bg-zinc-800 hover:bg-zinc-200 dark:hover:bg-zinc-700 rounded-lg transition-colors disabled:opacity-50"
-            title="Exportar Período JSON"
           >
-            {loading === 'range' ? <Loader2 className="w-4 h-4 animate-spin" /> : <FileJson className="w-4 h-4 text-zinc-500" />}
+            {loading === 'range' ? <Loader2 className="w-4 h-4 animate-spin text-indigo-500" /> : <FileJson className="w-4 h-4 text-zinc-500" />}
           </button>
           <button
             onClick={() => handleRangeExport('csv')}
             disabled={!!loading}
             className="p-2 bg-zinc-100 dark:bg-zinc-800 hover:bg-zinc-200 dark:hover:bg-zinc-700 rounded-lg transition-colors disabled:opacity-50"
-            title="Exportar Período CSV"
           >
-            {loading === 'range' ? <Loader2 className="w-4 h-4 animate-spin" /> : <FileSpreadsheet className="w-4 h-4 text-zinc-500" />}
+            {loading === 'range' ? <Loader2 className="w-4 h-4 animate-spin text-indigo-500" /> : <FileSpreadsheet className="w-4 h-4 text-zinc-500" />}
           </button>
         </div>
       </div>
@@ -104,7 +127,7 @@ const ExportControls: React.FC = () => {
       {/* Exportação Completa */}
       <div className="flex items-center gap-3">
         <div className="flex flex-col">
-          <span className="text-[9px] font-black text-zinc-400 uppercase tracking-widest">Full Database</span>
+          <span className="text-[9px] font-black text-zinc-400 uppercase tracking-widest">Database Total</span>
           <div className="flex gap-2 mt-1">
             <button
               onClick={() => handleFullExport('json')}
